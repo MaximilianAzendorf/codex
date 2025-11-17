@@ -91,6 +91,7 @@ use codex_app_server_protocol::TurnStatus;
 use codex_app_server_protocol::UserInfoResponse;
 use codex_app_server_protocol::UserInput as V2UserInput;
 use codex_app_server_protocol::UserSavedConfig;
+use codex_app_server_protocol::build_turns_from_event_msgs;
 use codex_backend_client::Client as BackendClient;
 use codex_core::AuthManager;
 use codex_core::CodexConversation;
@@ -118,6 +119,7 @@ use codex_core::parse_cursor;
 use codex_core::protocol::EventMsg;
 use codex_core::protocol::Op;
 use codex_core::protocol::ReviewRequest;
+use codex_core::protocol::SessionConfiguredEvent;
 use codex_core::read_head_for_summary;
 use codex_feedback::CodexFeedback;
 use codex_login::ServerOptions as LoginServerOptions;
@@ -1612,6 +1614,11 @@ impl CodexMessageProcessor {
                 session_configured,
                 ..
             }) => {
+                let SessionConfiguredEvent {
+                    rollout_path,
+                    initial_messages,
+                    ..
+                } = session_configured;
                 // Auto-attach a conversation listener when resuming a thread.
                 if let Err(err) = self
                     .attach_conversation_listener(conversation_id, false, ApiVersion::V2)
@@ -1624,8 +1631,8 @@ impl CodexMessageProcessor {
                     );
                 }
 
-                let thread = match read_summary_from_rollout(
-                    session_configured.rollout_path.as_path(),
+                let mut thread = match read_summary_from_rollout(
+                    rollout_path.as_path(),
                     fallback_model_provider.as_str(),
                 )
                 .await
@@ -1636,13 +1643,18 @@ impl CodexMessageProcessor {
                             request_id,
                             format!(
                                 "failed to load rollout `{}` for conversation {conversation_id}: {err}",
-                                session_configured.rollout_path.display()
+                                rollout_path.display()
                             ),
                         )
                         .await;
                         return;
                     }
                 };
+
+                thread.turns = initial_messages
+                    .as_deref()
+                    .map_or_else(Vec::new, build_turns_from_event_msgs);
+
                 let response = ThreadResumeResponse { thread };
                 self.outgoing.send_response(request_id, response).await;
             }
@@ -2941,6 +2953,7 @@ fn summary_to_thread(summary: ConversationSummary) -> Thread {
         model_provider,
         created_at: created_at.map(|dt| dt.timestamp()).unwrap_or(0),
         path,
+        turns: Vec::new(),
     }
 }
 
