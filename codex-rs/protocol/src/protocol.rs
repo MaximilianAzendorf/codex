@@ -1390,6 +1390,9 @@ pub struct PatchApplyEndEvent {
     pub stderr: String,
     /// Whether the patch was applied successfully.
     pub success: bool,
+    /// The changes that were applied (mirrors PatchApplyBeginEvent::changes).
+    #[serde(default)]
+    pub changes: HashMap<PathBuf, FileChange>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, TS)]

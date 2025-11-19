@@ -2079,12 +2079,20 @@ fn apply_patch_events_emit_history_cells() {
     );
 
     // 3) End apply success -> success cell
+    let mut end_changes = HashMap::new();
+    end_changes.insert(
+        PathBuf::from("foo.txt"),
+        FileChange::Add {
+            content: "hello\n".to_string(),
+        },
+    );
     let end = PatchApplyEndEvent {
         call_id: "c1".into(),
         turn_id: "turn-c1".into(),
         stdout: "ok\n".into(),
         stderr: String::new(),
         success: true,
+        changes: end_changes,
     };
     chat.handle_codex_event(Event {
         id: "s1".into(),
@@ -2298,6 +2306,11 @@ fn apply_patch_full_flow_integration_like() {
             changes: changes2,
         }),
     });
+    let mut end_changes = HashMap::new();
+    end_changes.insert(
+        PathBuf::from("pkg.rs"),
+        FileChange::Add { content: "".into() },
+    );
     chat.handle_codex_event(Event {
         id: "sub-xyz".into(),
         msg: EventMsg::PatchApplyEnd(PatchApplyEndEvent {
@@ -2306,6 +2319,7 @@ fn apply_patch_full_flow_integration_like() {
             stdout: String::from("ok"),
             stderr: String::new(),
             success: true,
+            changes: end_changes,
         }),
     });
 }

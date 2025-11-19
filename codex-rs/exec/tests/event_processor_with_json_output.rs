@@ -833,6 +833,7 @@ fn patch_apply_success_produces_item_completed_patchapply() {
             stdout: "applied 3 changes".to_string(),
             stderr: String::new(),
             success: true,
+            changes: changes.clone(),
         }),
     );
     let out_end = ep.collect_thread_events(&end);
@@ -903,6 +904,7 @@ fn patch_apply_failure_produces_item_completed_patchapply_failed() {
             stdout: String::new(),
             stderr: "failed to apply".to_string(),
             success: false,
+            changes: changes.clone(),
         }),
     );
     let out_end = ep.collect_thread_events(&end);

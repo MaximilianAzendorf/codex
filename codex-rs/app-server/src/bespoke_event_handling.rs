@@ -16,12 +16,15 @@ use codex_app_server_protocol::ExecCommandApprovalResponse;
 use codex_app_server_protocol::FileChange as V2FileChange;
 use codex_app_server_protocol::FileChangeRequestApprovalParams;
 use codex_app_server_protocol::FileChangeRequestApprovalResponse;
+use codex_app_server_protocol::FileUpdateChange;
 use codex_app_server_protocol::InterruptConversationResponse;
 use codex_app_server_protocol::ItemCompletedNotification;
 use codex_app_server_protocol::ItemStartedNotification;
 use codex_app_server_protocol::McpToolCallError;
 use codex_app_server_protocol::McpToolCallResult;
 use codex_app_server_protocol::McpToolCallStatus;
+use codex_app_server_protocol::PatchApplyStatus;
+use codex_app_server_protocol::PatchChangeKind as V2PatchChangeKind;
 use codex_app_server_protocol::ReasoningSummaryPartAddedNotification;
 use codex_app_server_protocol::ReasoningSummaryTextDeltaNotification;
 use codex_app_server_protocol::ReasoningTextDeltaNotification;
@@ -37,6 +40,7 @@ use codex_core::protocol::Event;
 use codex_core::protocol::EventMsg;
 use codex_core::protocol::ExecApprovalRequestEvent;
 use codex_core::protocol::ExecCommandEndEvent;
+use codex_core::protocol::FileChange as CoreFileChange;
 use codex_core::protocol::McpToolCallBeginEvent;
 use codex_core::protocol::McpToolCallEndEvent;
 use codex_core::protocol::Op;
@@ -44,7 +48,9 @@ use codex_core::protocol::ReviewDecision;
 use codex_core::review_format::format_review_findings_block;
 use codex_protocol::ConversationId;
 use codex_protocol::protocol::ReviewOutputEvent;
+use std::collections::HashMap;
 use std::convert::TryFrom;
+use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::oneshot;
 use tracing::error;
@@ -260,6 +266,33 @@ pub(crate) async fn apply_bespoke_event_handling(
                 .send_server_notification(ServerNotification::ItemCompleted(notification))
                 .await;
         }
+        EventMsg::PatchApplyBegin(patch_begin_event) => {
+            let item = ThreadItem::FileChange {
+                id: patch_begin_event.call_id.clone(),
+                changes: convert_patch_changes(&patch_begin_event.changes),
+                status: PatchApplyStatus::InProgress,
+            };
+            let notification = ItemStartedNotification { item };
+            outgoing
+                .send_server_notification(ServerNotification::ItemStarted(notification))
+                .await;
+        }
+        EventMsg::PatchApplyEnd(patch_end_event) => {
+            let status = if patch_end_event.success {
+                PatchApplyStatus::Completed
+            } else {
+                PatchApplyStatus::Failed
+            };
+            let item = ThreadItem::FileChange {
+                id: patch_end_event.call_id.clone(),
+                changes: convert_patch_changes(&patch_end_event.changes),
+                status,
+            };
+            let notification = ItemCompletedNotification { item };
+            outgoing
+                .send_server_notification(ServerNotification::ItemCompleted(notification))
+                .await;
+        }
         EventMsg::ExecCommandBegin(exec_command_begin_event) => {
             let item = ThreadItem::CommandExecution {
                 id: exec_command_begin_event.call_id.clone(),
@@ -458,6 +491,44 @@ fn render_review_output_text(output: &ReviewOutputEvent) -> String {
         REVIEW_FALLBACK_MESSAGE.to_string()
     } else {
         sections.join("\n\n")
+    }
+}
+
+fn convert_patch_changes(changes: &HashMap<PathBuf, CoreFileChange>) -> Vec<FileUpdateChange> {
+    let mut converted: Vec<FileUpdateChange> = changes
+        .iter()
+        .map(|(path, change)| FileUpdateChange {
+            path: path.to_string_lossy().into_owned(),
+            kind: map_patch_change_kind(change),
+            diff: format_file_change_diff(change),
+        })
+        .collect();
+    converted.sort_by(|a, b| a.path.cmp(&b.path));
+    converted
+}
+
+fn map_patch_change_kind(change: &CoreFileChange) -> V2PatchChangeKind {
+    match change {
+        CoreFileChange::Add { .. } => V2PatchChangeKind::Add,
+        CoreFileChange::Delete { .. } => V2PatchChangeKind::Delete,
+        CoreFileChange::Update { .. } => V2PatchChangeKind::Update,
+    }
+}
+
+fn format_file_change_diff(change: &CoreFileChange) -> String {
+    match change {
+        CoreFileChange::Add { content } => content.clone(),
+        CoreFileChange::Delete { content } => content.clone(),
+        CoreFileChange::Update {
+            unified_diff,
+            move_path,
+        } => {
+            if let Some(path) = move_path {
+                format!("{unified_diff}\n\nMoved to: {}", path.display())
+            } else {
+                unified_diff.clone()
+            }
+        }
     }
 }
 
