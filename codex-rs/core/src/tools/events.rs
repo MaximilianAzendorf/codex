@@ -171,6 +171,7 @@ impl ToolEmitter {
                         ctx.turn,
                         EventMsg::PatchApplyBegin(PatchApplyBeginEvent {
                             call_id: ctx.call_id.to_string(),
+                            turn_id: ctx.turn.sub_id.clone(),
                             auto_approved: *auto_approved,
                             changes: changes.clone(),
                         }),
@@ -394,6 +395,7 @@ async fn emit_patch_end(ctx: ToolEventCtx<'_>, stdout: String, stderr: String, s
             ctx.turn,
             EventMsg::PatchApplyEnd(PatchApplyEndEvent {
                 call_id: ctx.call_id.to_string(),
+                turn_id: ctx.turn.sub_id.clone(),
                 stdout,
                 stderr,
                 success,

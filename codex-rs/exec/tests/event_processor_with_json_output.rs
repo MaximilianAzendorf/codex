@@ -816,6 +816,7 @@ fn patch_apply_success_produces_item_completed_patchapply() {
         "p1",
         EventMsg::PatchApplyBegin(PatchApplyBeginEvent {
             call_id: "call-1".to_string(),
+            turn_id: "turn-1".to_string(),
             auto_approved: true,
             changes: changes.clone(),
         }),
@@ -828,6 +829,7 @@ fn patch_apply_success_produces_item_completed_patchapply() {
         "p2",
         EventMsg::PatchApplyEnd(PatchApplyEndEvent {
             call_id: "call-1".to_string(),
+            turn_id: "turn-1".to_string(),
             stdout: "applied 3 changes".to_string(),
             stderr: String::new(),
             success: true,
@@ -885,6 +887,7 @@ fn patch_apply_failure_produces_item_completed_patchapply_failed() {
         "p1",
         EventMsg::PatchApplyBegin(PatchApplyBeginEvent {
             call_id: "call-2".to_string(),
+            turn_id: "turn-2".to_string(),
             auto_approved: false,
             changes: changes.clone(),
         }),
@@ -896,6 +899,7 @@ fn patch_apply_failure_produces_item_completed_patchapply_failed() {
         "p2",
         EventMsg::PatchApplyEnd(PatchApplyEndEvent {
             call_id: "call-2".to_string(),
+            turn_id: "turn-2".to_string(),
             stdout: String::new(),
             stderr: "failed to apply".to_string(),
             success: false,
