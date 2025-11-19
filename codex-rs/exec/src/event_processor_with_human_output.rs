@@ -161,9 +161,16 @@ impl EventProcessor for EventProcessorWithHumanOutput {
     fn process_event(&mut self, event: Event) -> CodexStatus {
         let Event { id: _, msg } = event;
         match msg {
-            EventMsg::Error(ErrorEvent { message }) => {
+            EventMsg::Error(ErrorEvent {
+                message,
+                status_code,
+            }) => {
                 let prefix = "ERROR:".style(self.red);
-                ts_msg!(self, "{prefix} {message}");
+                let body = match status_code {
+                    Some(code) => format!("{message} (status {code})"),
+                    None => message,
+                };
+                ts_msg!(self, "{prefix} {body}");
             }
             EventMsg::Warning(WarningEvent { message }) => {
                 ts_msg!(
@@ -221,8 +228,15 @@ impl EventProcessor for EventProcessorWithHumanOutput {
             EventMsg::BackgroundEvent(BackgroundEventEvent { message }) => {
                 ts_msg!(self, "{}", message.style(self.dimmed));
             }
-            EventMsg::StreamError(StreamErrorEvent { message }) => {
-                ts_msg!(self, "{}", message.style(self.dimmed));
+            EventMsg::StreamError(StreamErrorEvent {
+                message,
+                status_code,
+            }) => {
+                let body = match status_code {
+                    Some(code) => format!("{message} (status {code})"),
+                    None => message,
+                };
+                ts_msg!(self, "{}", body.style(self.dimmed));
             }
             EventMsg::TaskStarted(_) => {
                 // Ignore.

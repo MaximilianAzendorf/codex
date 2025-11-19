@@ -85,6 +85,8 @@ pub struct ItemUpdatedEvent {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, TS)]
 pub struct ThreadErrorEvent {
     pub message: String,
+    #[serde(default)]
+    pub status_code: Option<u16>,
 }
 
 /// Canonical representation of a thread item and its domain-specific payload.

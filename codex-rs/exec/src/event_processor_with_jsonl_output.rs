@@ -126,6 +126,7 @@ impl EventProcessorWithJsonOutput {
             EventMsg::Error(ev) => {
                 let error = ThreadErrorEvent {
                     message: ev.message.clone(),
+                    status_code: ev.status_code,
                 };
                 self.last_critical_error = Some(error.clone());
                 vec![ThreadEvent::Error(error)]
@@ -141,6 +142,7 @@ impl EventProcessorWithJsonOutput {
             }
             EventMsg::StreamError(ev) => vec![ThreadEvent::Error(ThreadErrorEvent {
                 message: ev.message.clone(),
+                status_code: ev.status_code,
             })],
             EventMsg::PlanUpdate(ev) => self.handle_plan_update(ev),
             _ => Vec::new(),

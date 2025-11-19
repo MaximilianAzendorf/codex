@@ -13,6 +13,7 @@ use codex_core::protocol::McpToolCallEndEvent;
 use codex_core::protocol::PatchApplyBeginEvent;
 use codex_core::protocol::PatchApplyEndEvent;
 use codex_core::protocol::SessionConfiguredEvent;
+use codex_core::protocol::StreamErrorEvent;
 use codex_core::protocol::WarningEvent;
 use codex_core::protocol::WebSearchEndEvent;
 use codex_exec::event_processor_with_jsonl_output::EventProcessorWithJsonOutput;
@@ -533,12 +534,14 @@ fn error_event_produces_error() {
         "e1",
         EventMsg::Error(codex_core::protocol::ErrorEvent {
             message: "boom".to_string(),
+            status_code: Some(500),
         }),
     ));
     assert_eq!(
         out,
         vec![ThreadEvent::Error(ThreadErrorEvent {
             message: "boom".to_string(),
+            status_code: Some(500),
         })]
     );
 }
@@ -570,14 +573,16 @@ fn stream_error_event_produces_error() {
     let mut ep = EventProcessorWithJsonOutput::new(None);
     let out = ep.collect_thread_events(&event(
         "e1",
-        EventMsg::StreamError(codex_core::protocol::StreamErrorEvent {
+        EventMsg::StreamError(StreamErrorEvent {
             message: "retrying".to_string(),
+            status_code: None,
         }),
     ));
     assert_eq!(
         out,
         vec![ThreadEvent::Error(ThreadErrorEvent {
             message: "retrying".to_string(),
+            status_code: None,
         })]
     );
 }
@@ -590,12 +595,14 @@ fn error_followed_by_task_complete_produces_turn_failed() {
         "e1",
         EventMsg::Error(ErrorEvent {
             message: "boom".to_string(),
+            status_code: Some(429),
         }),
     );
     assert_eq!(
         ep.collect_thread_events(&error_event),
         vec![ThreadEvent::Error(ThreadErrorEvent {
             message: "boom".to_string(),
+            status_code: Some(429),
         })]
     );
 
@@ -610,6 +617,7 @@ fn error_followed_by_task_complete_produces_turn_failed() {
         vec![ThreadEvent::TurnFailed(TurnFailedEvent {
             error: ThreadErrorEvent {
                 message: "boom".to_string(),
+                status_code: Some(429),
             },
         })]
     );

@@ -10,6 +10,7 @@ use chrono::Local;
 use chrono::Utc;
 use codex_async_utils::CancelErr;
 use codex_protocol::ConversationId;
+use codex_protocol::protocol::ErrorEvent;
 use codex_protocol::protocol::RateLimitSnapshot;
 use reqwest::StatusCode;
 use serde_json;
@@ -430,6 +431,31 @@ impl CodexErr {
     pub fn downcast_ref<T: std::any::Any>(&self) -> Option<&T> {
         (self as &dyn std::any::Any).downcast_ref::<T>()
     }
+
+    pub fn status_code(&self) -> Option<StatusCode> {
+        match self {
+            CodexErr::UnexpectedStatus(err) => Some(err.status),
+            CodexErr::RetryLimit(err) => Some(err.status),
+            CodexErr::UsageLimitReached(_) | CodexErr::UsageNotIncluded => {
+                Some(StatusCode::TOO_MANY_REQUESTS)
+            }
+            CodexErr::InternalServerError => Some(StatusCode::INTERNAL_SERVER_ERROR),
+            CodexErr::ResponseStreamFailed(err) => err.source.status(),
+            CodexErr::ConnectionFailed(err) => err.source.status(),
+            _ => None,
+        }
+    }
+
+    pub fn to_error_event(&self) -> ErrorEvent {
+        ErrorEvent {
+            message: self.to_string(),
+            status_code: status_code_value(self.status_code()),
+        }
+    }
+}
+
+pub fn status_code_value(status_code: Option<StatusCode>) -> Option<u16> {
+    status_code.as_ref().map(StatusCode::as_u16)
 }
 
 pub fn get_error_message_ui(e: &CodexErr) -> String {
@@ -773,5 +799,29 @@ mod tests {
             let expected = format!("You've hit your usage limit. Try again at {expected_time}.");
             assert_eq!(err.to_string(), expected);
         });
+    }
+
+    #[test]
+    fn error_event_includes_status_code_when_available() {
+        let err = CodexErr::UnexpectedStatus(UnexpectedResponseError {
+            status: StatusCode::BAD_REQUEST,
+            body: "oops".to_string(),
+            request_id: Some("req-1".to_string()),
+        });
+        let event = err.to_error_event();
+
+        assert_eq!(
+            event.message,
+            "unexpected status 400 Bad Request: oops, request id: req-1"
+        );
+        assert_eq!(event.status_code, Some(StatusCode::BAD_REQUEST.as_u16()));
+    }
+
+    #[test]
+    fn error_event_omits_status_code_when_unknown() {
+        let event = CodexErr::Fatal("boom".to_string()).to_error_event();
+
+        assert_eq!(event.message, "Fatal error: boom");
+        assert_eq!(event.status_code, None);
     }
 }
